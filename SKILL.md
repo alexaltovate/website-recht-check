@@ -70,9 +70,10 @@ Live-URL oder als Quellcode-Projekt.
 
 - Heuristik, kein Anwalt. FAIL = hohe Wahrscheinlichkeit, kein Urteil.
 - **SPA/JS-gerenderte Seiten (React, Lovable, Vue …):** der Baseline-Fetch sieht nur
-  die Shell. Inhalts-Checks (Impressum-Pflichtangaben, Datenschutz-Vollständigkeit)
-  laufen dann ins Leere und erzeugen vorsichtige WARNs. Bei solchen Seiten `--deep`
-  nutzen oder die markierten WARNs manuell am gerenderten Ergebnis gegenprüfen.
+  die Shell — Impressum/Datenschutz scheinen dann fälschlich „nicht gefunden". Bei
+  solchen Seiten **immer `--deep`** verwenden: dann werden Links und Inhalte auf dem
+  echten, gerenderten DOM geprüft. Ohne `--deep` sind „nicht gefunden"-FAILs bei
+  SPAs mit Vorsicht zu behandeln.
 - Content-Tiefe (z.B. vollständige Datenschutzerklärung, echte Drittland-Garantien)
   und A11y-Details (Kontraste, Fokus-Reihenfolge) brauchen menschliche Prüfung.
 - Stand der Referenzen: Juni 2026. Fristen/Rechtslage ändern sich — bei kritischen

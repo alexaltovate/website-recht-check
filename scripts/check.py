@@ -163,11 +163,41 @@ class Report:
 # Hilfsfunktionen
 # =============================================================================
 def fetch(url, timeout=15):
-    """Laedt eine URL, gibt (status, html, final_url) zurueck."""
+    """Laedt eine URL statisch (ohne JS), gibt (status, html, final_url) zurueck."""
     import requests
     r = requests.get(url, headers={"User-Agent": USER_AGENT},
                      timeout=timeout, allow_redirects=True)
     return r.status_code, r.text, str(r.url)
+
+
+def render_html(url, timeout=25000):
+    """Rendert eine Seite mit Playwright (fuehrt JS aus) und gibt das DOM zurueck.
+    None, wenn Playwright fehlt oder das Rendern scheitert."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(user_agent=USER_AGENT)
+            page.goto(url, wait_until="networkidle", timeout=timeout)
+            page.wait_for_timeout(1500)
+            html = page.content()
+            browser.close()
+            return html
+    except Exception:
+        return None
+
+
+def get_page(url, deep, timeout=15):
+    """Holt Seiten-HTML. Im Deep-Modus gerendert (mit Fallback auf statisch),
+    sonst statisch. So sehen die Inhalts-Checks bei SPAs das echte DOM."""
+    if deep:
+        html = render_html(url)
+        if html is not None:
+            return 200, html, url
+    return fetch(url, timeout=timeout)
 
 
 def find_legal_links(soup, base_url):
@@ -203,7 +233,7 @@ def check_live(url, deep, report):
     from bs4 import BeautifulSoup
 
     try:
-        status, html, final = fetch(url)
+        status, html, final = get_page(url, deep)
     except Exception as e:
         report.add("Impressum", FAIL, "Seite nicht erreichbar",
                    f"Abruf von {url} fehlgeschlagen: {e}")
@@ -221,15 +251,15 @@ def check_live(url, deep, report):
         report.add("Impressum", PASS, "Impressum-Link auf Startseite (1 Klick)",
                    f"Linktext: \"{impressum_links[0][1]}\"",
                    "§ 5 DDG; Erreichbarkeit max. 2 Klicks (st. Rspr.)")
-        _check_impressum_content(impressum_links[0][0], report)
+        _check_impressum_content(impressum_links[0][0], report, deep)
     else:
         # Tiefe 2: eine Ebene weiter suchen
-        found = _bfs_for_link(final, soup, "impressum", report)
+        found = _bfs_for_link(final, soup, "impressum", report, deep)
         if found:
             report.add("Impressum", PASS, "Impressum erst auf 2. Ebene (2 Klicks)",
                        f"Gefunden unter: {found}",
                        "§ 5 DDG; gerade noch im 2-Klick-Rahmen")
-            _check_impressum_content(found, report)
+            _check_impressum_content(found, report, deep)
         else:
             report.add("Impressum", FAIL, "Kein Impressum in 2 Klicks gefunden",
                        "Weder auf der Startseite noch eine Ebene tiefer wurde ein "
@@ -247,14 +277,14 @@ def check_live(url, deep, report):
                        "Als normale HTML-Seite bereitstellen.",
                        "Art. 13 DSGVO i.V.m. Transparenzgebot; BFSG")
         else:
-            _check_datenschutz_content(url_dse, report)
+            _check_datenschutz_content(url_dse, report, deep)
     else:
-        found = _bfs_for_link(final, soup, "datenschutz", report)
+        found = _bfs_for_link(final, soup, "datenschutz", report, deep)
         if found:
             report.add("Datenschutz", WARN, "Datenschutz erst auf 2. Ebene",
                        f"Gefunden unter: {found}. Sollte direkt im Footer stehen.",
                        "Art. 13 DSGVO")
-            _check_datenschutz_content(found, report)
+            _check_datenschutz_content(found, report, deep)
         else:
             report.add("Datenschutz", FAIL, "Keine Datenschutzerklaerung gefunden",
                        "Kein klar benannter Datenschutz-Link in 2 Klicks. "
@@ -308,7 +338,7 @@ def check_live(url, deep, report):
         _check_deep_runtime(final, report)
 
 
-def _bfs_for_link(base_url, soup, keyword, report, max_pages=12):
+def _bfs_for_link(base_url, soup, keyword, report, deep=False, max_pages=12):
     """Sucht eine Ebene tiefer nach einem Link, der das Keyword enthaelt."""
     from bs4 import BeautifulSoup
     host = urlparse(base_url).netloc
@@ -318,13 +348,14 @@ def _bfs_for_link(base_url, soup, keyword, report, max_pages=12):
         if urlparse(full).netloc == host:
             queue.append(full)
     seen = set()
-    while queue and len(seen) < max_pages:
+    limit = 8 if deep else max_pages  # Rendern ist teurer -> weniger Seiten
+    while queue and len(seen) < limit:
         link = queue.popleft()
         if link in seen:
             continue
         seen.add(link)
         try:
-            status, html, final = fetch(link, timeout=10)
+            status, html, final = get_page(link, deep, timeout=10)
             if status >= 400:
                 continue
             sub = BeautifulSoup(html, "html.parser")
@@ -338,10 +369,10 @@ def _bfs_for_link(base_url, soup, keyword, report, max_pages=12):
     return None
 
 
-def _check_impressum_content(url, report):
+def _check_impressum_content(url, report, deep=False):
     """Prueft Pflichtangaben im Impressum (heuristisch am Textinhalt)."""
     try:
-        status, html, _ = fetch(url)
+        status, html, _ = get_page(url, deep)
     except Exception:
         return
     text = re.sub(r"<[^>]+>", " ", html).lower()
@@ -392,10 +423,10 @@ def _check_impressum_content(url, report):
                    "Art. 14 ODR-VO (aufgehoben)")
 
 
-def _check_datenschutz_content(url, report):
+def _check_datenschutz_content(url, report, deep=False):
     """Prueft Vollstaendigkeit der Datenschutzerklaerung (heuristisch)."""
     try:
-        status, html, _ = fetch(url)
+        status, html, _ = get_page(url, deep)
     except Exception:
         return
     text = re.sub(r"<[^>]+>", " ", html).lower()
