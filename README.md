@@ -30,7 +30,7 @@ kritischen Fällen Fachanwalt.*
 Repo in das Skill-Verzeichnis kopieren:
 
 ```bash
-git clone https://github.com/<dein-user>/website-recht-check.git
+git clone https://github.com/alexaltovate/website-recht-check.git
 cp -r website-recht-check ~/.claude/skills/website-recht-check
 pip install -r ~/.claude/skills/website-recht-check/scripts/requirements.txt
 # optional für den Deep-Modus:
