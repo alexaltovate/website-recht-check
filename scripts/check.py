@@ -422,9 +422,15 @@ def _check_impressum_content(url, report, deep=False):
         else:
             report.add("Impressum", WARN, "Keine Handelsregister-Angabe erkennbar",
                        "Register + Registernummer angeben.", "§ 5 Abs. 1 Nr. 4 DDG")
-    # USt-IdNr.
-    if re.search(r"de\s?\d{9}", text) or "umsatzsteuer" in text or "ust-id" in text:
+    # USt-IdNr. — gueltige Nummer (DE + 9 Ziffern) verlangen, nicht nur das Stichwort.
+    has_ust_field = "umsatzsteuer" in text or "ust-id" in text or "§ 27 a" in text or "27a" in text
+    if re.search(r"de\s?\d{9}", text):
         report.add("Impressum", PASS, "USt-IdNr. erkennbar", basis="§ 5 Abs. 1 Nr. 6 DDG")
+    elif has_ust_field:
+        report.add("Impressum", WARN, "USt-IdNr-Feld ohne gültige Nummer",
+                   "Feld vorhanden, aber keine gültige USt-IdNr (DE + 9 Ziffern) erkannt "
+                   "(z.B. „wird nachgereicht\"). Falls eine USt-IdNr existiert, eintragen.",
+                   "§ 5 Abs. 1 Nr. 6 DDG")
     # OS-Plattform-Link (seit 20.07.2025 abgeschaltet)
     if "ec.europa.eu/consumers/odr" in html.lower():
         report.add("Impressum", WARN, "Veralteter OS-Plattform-Link",
