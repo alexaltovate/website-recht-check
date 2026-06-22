@@ -41,8 +41,9 @@ INFO = "INFO"      # Kontext / Hinweis
 
 # --- Bekannte Tracker (laden ohne Einwilligung = i.d.R. unzulaessig) ---------
 TRACKER_SIGNATURES = {
-    "Google Analytics (GA4)": [r"gtag\(", r"googletagmanager\.com/gtag", r"G-[A-Z0-9]{6,}"],
-    "Google Tag Manager": [r"googletagmanager\.com/gtm", r"GTM-[A-Z0-9]+"],
+    "Google Analytics (GA4)": [r"googletagmanager\.com/gtag", r"gtag\(\s*['\"]config['\"]",
+                               r"google-analytics\.com/g/collect"],
+    "Google Tag Manager": [r"googletagmanager\.com/gtm", r"GTM-[A-Z0-9]{4,}"],
     "Universal Analytics (alt)": [r"google-analytics\.com/analytics\.js", r"UA-\d{4,}"],
     "Meta/Facebook Pixel": [r"connect\.facebook\.net", r"fbq\(", r"fbevents\.js"],
     "Google Fonts (CDN)": [r"fonts\.googleapis\.com", r"fonts\.gstatic\.com"],
@@ -181,8 +182,16 @@ def render_html(url, timeout=25000):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(user_agent=USER_AGENT)
-            page.goto(url, wait_until="networkidle", timeout=timeout)
-            page.wait_for_timeout(1500)
+            # "load" statt "networkidle": networkidle feuert auf Seiten mit
+            # offenen Verbindungen (HMR-Websocket, Chat, Polling) nie.
+            page.goto(url, wait_until="load", timeout=timeout)
+            page.wait_for_timeout(2000)  # SPA-Hydration abwarten
+            # Bis zum Footer scrollen — viele SPAs rendern ihn erst beim Sichtbarwerden.
+            try:
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                page.wait_for_timeout(1200)
+            except Exception:
+                pass
             html = page.content()
             browser.close()
             return html
@@ -503,8 +512,8 @@ def _check_deep_runtime(url, report):
             page.on("request", lambda req: [
                 pre_consent_trackers.add(d) for d in TRACKER_DOMAINS if d in req.url
             ])
-            page.goto(url, wait_until="networkidle", timeout=25000)
-            page.wait_for_timeout(2500)  # kurz warten, bevor irgendetwas geklickt wird
+            page.goto(url, wait_until="load", timeout=25000)
+            page.wait_for_timeout(3500)  # warten, bevor irgendetwas geklickt wird
             body = page.content().lower()
             browser.close()
     except Exception as e:
