@@ -1,0 +1,13 @@
+# Reports / Output
+compliance-report.md
+*.report.md
+*.report.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store

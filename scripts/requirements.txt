@@ -1,0 +1,7 @@
+# Baseline (Live- und Code-Check)
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Optional, nur fuer --deep (echtes Laden, Tracking-vor-Consent-Beweis):
+#   pip install playwright
+#   playwright install chromium
