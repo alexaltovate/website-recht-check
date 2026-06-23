@@ -31,7 +31,7 @@ Live-URL oder als Quellcode-Projekt.
 
    # Live-Check:
    python scripts/check.py https://example.de --json /tmp/wrc.json
-   # Live-Check mit Laufzeit-Beweis:
+   # Live-Check mit Laufzeit-Beweis + echtem WCAG-Audit (axe-core):
    python scripts/check.py https://example.de --deep --json /tmp/wrc.json
    # Code-Check:
    python scripts/check.py /pfad/zum/projekt --json /tmp/wrc.json
@@ -54,6 +54,10 @@ Live-URL oder als Quellcode-Projekt.
    — du schon, anhand des Kontexts:
    - **BFSG-Betroffenheit:** B2C mit Vertragsabschluss/Shop/Buchung? Kleinst­unternehmen
      (< 10 MA **und** ≤ 2 Mio. € Umsatz)? Produkte vs. nur Dienstleistung? Siehe Referenz.
+     Im `--deep`-Modus läuft zusätzlich ein echter WCAG-Audit via **axe-core** (dieselbe
+     Engine wie Lighthouses Accessibility-Score) — Kontraste, ARIA, Labels. Für einen
+     vollständigen Lighthouse-Report (inkl. Performance/SEO) steht, falls verfügbar, das
+     `chrome-devtools`-MCP-Tool `lighthouse_audit` bereit.
    - **AI-Act Art. 50:** Ist ein erkannter Chatbot KI-gestützt? Gibt es foto-realistische
      KI-Bilder oder ungeprüfte KI-Texte? Reines KI-als-Werkzeug ist nicht kennzeichnungspflichtig.
    - Frage gezielt nach, wenn der Geschäftstyp für die Einordnung fehlt.
@@ -75,6 +79,7 @@ Live-URL oder als Quellcode-Projekt.
   echten, gerenderten DOM geprüft. Ohne `--deep` sind „nicht gefunden"-FAILs bei
   SPAs mit Vorsicht zu behandeln.
 - Content-Tiefe (z.B. vollständige Datenschutzerklärung, echte Drittland-Garantien)
-  und A11y-Details (Kontraste, Fokus-Reihenfolge) brauchen menschliche Prüfung.
+  braucht menschliche Prüfung. A11y: `--deep` deckt via axe-core Kontraste/ARIA/Labels
+  ab; rein manuell bleiben Fokus-Reihenfolge und Sinnzusammenhang.
 - Stand der Referenzen: Juni 2026. Fristen/Rechtslage ändern sich — bei kritischen
   Fällen Quelle und Aktualität gegenprüfen.

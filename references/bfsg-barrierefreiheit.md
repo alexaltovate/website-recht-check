@@ -38,11 +38,18 @@ Marktüberwachungsbehörde.
 3. Kleinstunternehmen + nur Dienstleistung → ausgenommen. Produkte → erfasst.
 4. Im Zweifel: erfasst behandeln + Fachanwalt.
 
-## Was die Engine prüft (Heuristik, kein voller Audit)
-- `lang`-Attribut am `<html>`
-- Bilder ohne `alt`
-- Hinweis auf Barrierefreiheitserklärung vorhanden
-Kontraste, Fokus-Reihenfolge, echte Screenreader-Tauglichkeit → menschliche Prüfung.
+## Was die Engine prüft
+**Baseline (statisch):** `lang`-Attribut, Bilder ohne `alt`, Überschriften-Hierarchie
+(genau eine h1), Formularfelder ohne zugängliche Beschriftung, Links/Buttons ohne
+erkennbaren Namen, fehlendes `<main>`-Landmark, Barrierefreiheitserklärung vorhanden.
+
+**`--deep` (echter WCAG-Audit):** injiziert **axe-core** (dieselbe Engine, die
+Lighthouse für seinen Accessibility-Score nutzt) in den gerenderten DOM und meldet
+WCAG-2.1-Verstöße nach Schweregrad — u.a. Farbkontraste, ARIA-Korrektheit,
+Label-Zuordnung, Rollen. Das ist die belastbare Tiefe für den BFSG-Teil.
+
+**Bleibt manuell:** Fokus-Reihenfolge, Sinnzusammenhang von Alt-Texten, Tastatur-Fallen,
+Inhalts-Logik — das kann kein automatischer Test abschließend beurteilen.
 
 ## Quellen
 - BFSG-Gesetz: https://bfsg-gesetz.de/

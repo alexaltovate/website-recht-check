@@ -345,6 +345,7 @@ def check_live(url, deep, report):
     # --- Deep-Modus: echtes Laufzeitverhalten -------------------------------
     if deep:
         _check_deep_runtime(final, report)
+        _check_axe(final, report)  # echter WCAG-Audit (axe-core / Lighthouse-Engine)
 
 
 def _bfs_for_link(base_url, soup, keyword, report, deep=False, max_pages=12):
@@ -490,6 +491,57 @@ def _check_a11y(soup, html, report):
         else:
             report.add("Barrierefreiheit (BFSG)", PASS, "Alle Bilder mit alt-Attribut",
                        basis="WCAG 2.1 (1.1.1)")
+    # Ueberschrift: genau eine h1, keine uebersprungenen Ebenen
+    headings = [int(h.name[1]) for h in soup.find_all(re.compile(r"^h[1-6]$"))]
+    h1_count = headings.count(1)
+    if not headings:
+        pass
+    elif h1_count == 0:
+        report.add("Barrierefreiheit (BFSG)", WARN, "Keine <h1>-Ueberschrift",
+                   "Jede Seite braucht genau eine h1 als Hauptueberschrift.",
+                   "WCAG 2.1 (1.3.1 / 2.4.6)")
+    elif h1_count > 1:
+        report.add("Barrierefreiheit (BFSG)", WARN, f"{h1_count} <h1>-Ueberschriften",
+                   "Genau eine h1 pro Seite ist die Regel.", "WCAG 2.1 (1.3.1)")
+
+    # Formularfelder ohne zugaengliche Beschriftung
+    label_for = {lb.get("for") for lb in soup.find_all("label") if lb.get("for")}
+    unlabeled = 0
+    for fld in soup.find_all(["input", "select", "textarea"]):
+        if (fld.get("type") or "").lower() in ("hidden", "submit", "button", "reset", "image"):
+            continue
+        has_name = (fld.get("aria-label") or fld.get("aria-labelledby") or fld.get("title")
+                    or (fld.get("id") and fld.get("id") in label_for))
+        if not has_name:
+            unlabeled += 1
+    if unlabeled:
+        report.add("Barrierefreiheit (BFSG)", WARN,
+                   f"{unlabeled} Formularfeld(er) ohne zugaengliche Beschriftung",
+                   "Jedes Eingabefeld braucht ein verknuepftes <label>, aria-label o.ae. "
+                   "(Placeholder genuegt nicht).",
+                   "WCAG 2.1 (1.3.1 / 4.1.2)")
+
+    # Buttons / Links ohne erkennbaren Namen (z.B. reine Icon-Buttons)
+    nameless = 0
+    for el in soup.find_all(["a", "button"]):
+        txt = el.get_text(" ", strip=True)
+        if txt or el.get("aria-label") or el.get("title"):
+            continue
+        if el.find("img", alt=True) or el.find("svg", attrs={"aria-label": True}):
+            continue
+        nameless += 1
+    if nameless:
+        report.add("Barrierefreiheit (BFSG)", WARN,
+                   f"{nameless} Link(s)/Button(s) ohne erkennbaren Namen",
+                   "Icon-only-Elemente brauchen aria-label oder sichtbaren Text.",
+                   "WCAG 2.1 (2.4.4 / 4.1.2)")
+
+    # Landmark <main>
+    if not soup.find("main") and not soup.find(attrs={"role": "main"}):
+        report.add("Barrierefreiheit (BFSG)", WARN, "Kein <main>-Landmark",
+                   "Ein <main>-Bereich hilft Screenreadern bei der Orientierung.",
+                   "WCAG 2.1 (1.3.1)")
+
     if "barrierefreiheit" in html.lower() or "barrierefreiheitserkl" in html.lower():
         report.add("Barrierefreiheit (BFSG)", PASS, "Hinweis auf Barrierefreiheitserklaerung",
                    basis="§ 14 BFSG")
@@ -498,6 +550,72 @@ def _check_a11y(soup, html, report):
                    "Falls BFSG-pflichtig (B2C-Shop/Buchung, kein Kleinstunternehmen), "
                    "ist eine Erklaerung Pflicht. Betroffenheit manuell klaeren.",
                    "BFSG, seit 28.06.2025")
+
+
+AXE_CDN = "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js"
+
+
+def _check_axe(url, report):
+    """Echter WCAG-Audit mit axe-core (dieselbe Engine, die Lighthouse fuer den
+    Accessibility-Score nutzt). Injiziert axe in den gerenderten DOM und meldet
+    Verstoesse nach Schweregrad. Nur im --deep-Modus."""
+    try:
+        from playwright.sync_api import sync_playwright
+        import requests
+    except ImportError:
+        return
+    # axe-Quelle laden und per evaluate injizieren (umgeht Seiten-CSP, anders als <script src>)
+    try:
+        axe_src = requests.get(AXE_CDN, timeout=15).text
+    except Exception:
+        report.add("Barrierefreiheit (BFSG)", INFO, "axe-core nicht ladbar",
+                   "Konnte axe-core nicht vom CDN holen — WCAG-Audit uebersprungen.")
+        return
+    run_js = """async () => {
+        const r = await axe.run(document, { resultTypes: ['violations'] });
+        return r.violations.map(v => ({
+            id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length,
+        }));
+    }"""
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(user_agent=USER_AGENT)
+            page.goto(url, wait_until="load", timeout=25000)
+            page.wait_for_timeout(2000)
+            page.evaluate(axe_src)          # definiert window.axe
+            violations = page.evaluate(run_js)
+            browser.close()
+    except Exception as e:
+        report.add("Barrierefreiheit (BFSG)", INFO, "axe-core-Audit nicht abgeschlossen", str(e))
+        return
+
+    if not violations:
+        report.add("Barrierefreiheit (BFSG)", PASS,
+                   "axe-core: keine automatisch erkennbaren WCAG-Verstoesse",
+                   "Automatischer Test (axe-core, gleiche Engine wie Lighthouse). "
+                   "Ersetzt keine manuelle Pruefung (Fokus-Reihenfolge, Sinnzusammenhang).",
+                   "WCAG 2.1 / EN 301 549")
+        return
+
+    rank = {"critical": 0, "serious": 1, "moderate": 2, "minor": 3}
+    violations.sort(key=lambda v: rank.get(v.get("impact") or "minor", 3))
+    n_crit = sum(1 for v in violations if v.get("impact") in ("critical", "serious"))
+    report.add("Barrierefreiheit (BFSG)",
+               FAIL if n_crit else WARN,
+               f"axe-core: {len(violations)} WCAG-Verstoss-Typen ({n_crit} kritisch/ernst)",
+               "Automatischer Audit mit der Lighthouse-Accessibility-Engine.",
+               "WCAG 2.1 / EN 301 549 (BFSG)")
+    for v in violations[:8]:
+        sev = FAIL if v.get("impact") in ("critical", "serious") else WARN
+        report.add("Barrierefreiheit (BFSG)", sev,
+                   f"axe: {v['help']} [{v.get('impact', '?')}]",
+                   f"{v['nodes']} betroffene Stelle(n) · Regel-ID: {v['id']}",
+                   "WCAG 2.1 / EN 301 549")
+    if len(violations) > 8:
+        report.add("Barrierefreiheit (BFSG)", INFO,
+                   f"... {len(violations) - 8} weitere axe-Verstoss-Typen",
+                   "Vollstaendige Liste im JSON / via axe DevTools.")
 
 
 def _check_deep_runtime(url, report):

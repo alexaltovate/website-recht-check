@@ -17,7 +17,7 @@ Geprüft werden:
 | **Impressum** | § 5 DDG | Erreichbar in ≤ 2 Klicks? Aktuell (DDG statt TMG)? Pflichtangaben (Anschrift, Vertreter, HR, USt-IdNr.)? Toter OS-Plattform-Link? |
 | **Datenschutz** | Art. 13 DSGVO | Vorhanden & erreichbar? Als PDF versteckt (= Problem)? Kern-Pflichtangaben? |
 | **Cookies/Consent** | § 25 TDDDG | Tracker ohne Consent-Tool? **Lädt Tracking vor der Einwilligung?** „Ablehnen" gleichwertig zu „Akzeptieren"? |
-| **Barrierefreiheit** | BFSG | `lang`-Attribut, Alt-Texte, Barrierefreiheitserklärung; BFSG-Betroffenheit |
+| **Barrierefreiheit** | BFSG / WCAG 2.1 | Heuristiken (lang, Alt-Texte, Überschriften, Labels, Landmarks) + im `--deep`-Modus echter **axe-core**-Audit (Kontraste, ARIA — gleiche Engine wie Lighthouse) |
 | **KI-Transparenz** | EU AI Act, Art. 50 | KI-Chatbot ohne Kennzeichnung? KI-Bilder/-Texte kennzeichnungspflichtig? |
 
 *Keine Rechtsberatung — eine schnelle, reproduzierbare Risiko-Vorprüfung. Bei

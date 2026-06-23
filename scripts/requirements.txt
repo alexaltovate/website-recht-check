@@ -2,6 +2,8 @@
 requests>=2.31
 beautifulsoup4>=4.12
 
-# Optional, nur fuer --deep (echtes Laden, Tracking-vor-Consent-Beweis):
+# Optional, nur fuer --deep (echtes Laden, Tracking-vor-Consent-Beweis +
+# WCAG-Audit via axe-core, das von cdnjs nachgeladen wird):
 #   pip install playwright
 #   playwright install chromium
+# (requests oben wird auch fuer das Laden von axe-core genutzt)
